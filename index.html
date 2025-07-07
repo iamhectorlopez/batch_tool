@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Batch Tool (by Héctor López)</title>
+  <style>
+    /* ------ GLOBAL RESETS ------ */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+    }
+    h1 {
+      margin: 1rem;
+      text-align: center;
+    }
+    /* ------ LAYOUT ------ */
+    #sidebar {
+      width: 300px;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      overflow-y: auto;
+      background: #f9f9f9;
+      padding: 1rem;
+      z-index: 100;
+      border-radius: 6px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.1);
+      left: 0;
+      border-right: 1px solid #ccc;
+    }
+    /* Make the right sidebar narrower: 400px */
+    #templateSidebar {
+      width: 400px;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      overflow-y: auto;
+      background: #f9f9f9;
+      padding: 1rem;
+      z-index: 100;
+      border-radius: 6px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.1);
+      right: 0;
+      border-left: 1px solid #ccc;
+    }
+    /* Adjust content margins: 300px on the left, 400px on the right */
+    #content {
+      margin-left: 300px;
+      margin-right: 400px;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    @media screen and (max-width: 900px) {
+      #sidebar,
+      #templateSidebar,
+      #content {
+        position: static;
+        width: 100%;
+        margin: 0;
+        padding: 1rem;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+      }
+    }
+    fieldset {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      border-radius: 6px;
+      margin: 0.5rem 0;
+    }
+    fieldset#duplicatesFieldset {
+      border: 1px solid #cc0000;
+      padding: 0.5rem;
+      border-radius: 6px;
+      background: #ffe6e6;
+    }
+    fieldset#duplicatesFieldset legend {
+      font-weight: bold;
+      color: #cc0000;
+    }
+    legend {
+      font-weight: bold;
+      padding: 0 0.5rem;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    label {
+      font-weight: bold;
+    }
+    textarea {
+      width: 100%;
+      height: 120px;
+      font-family: monospace;
+      border-radius: 4px;
+      padding: 0.5rem;
+    }
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      padding: 0.4rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    .radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      font-weight: normal;
+    }
+    button {
+      cursor: pointer;
+      padding: 0.4rem 0.8rem;
+      margin-right: 0.5rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background-color: #fff;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      background-color: #f0f0f0;
+      box-shadow: 0 0 3px rgba(0,0,0,0.1);
+    }
+    /* Duplicates section */
+    #duplicatesList {
+      margin-top: 0.5rem;
+      padding-left: 1.2rem;
+    }
+    .collapsible-title {
+      cursor: pointer;
+      color: #333;
+      user-select: none;
+      display: inline-block;
+    }
+    /* Batches section */
+    .batch-block {
+      border: 1px solid #ccc;
+      margin-bottom: 1rem;
+      background: #fff;
+      padding: 0.75rem;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: opacity 0.3s ease;
+    }
+    .batch-block.done {
+      opacity: 0.7;
+      background-color: #e0e0e0;
+    }
+    .batch-block.highlight {
+      border: 2px solid #f00;
+    }
+    .batch-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    .batch-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0.5rem 0;
+    }
+    .done-checkbox {
+      transform: scale(1.2);
+      cursor: pointer;
+      margin-left: 0.5rem;
+    }
+    .batch-content {
+      transition: max-height 0.3s ease, opacity 0.3s ease;
+      overflow: hidden;
+    }
+    .batch-block.collapsed .batch-content {
+      display: none;
+    }
+    /* Toast notifications */
+    .toast {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      padding: 0.75rem 1.25rem;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      transition: opacity 0.4s ease-in-out, transform 0.4s;
+      transform: translateY(0);
+      opacity: 1;
+      z-index: 9999;
+    }
+    .toast.fade-out {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    .small-text {
+      font-size: 0.9rem;
+      color: #555;
+      margin-left: 0.5rem;
+    }
+    .btn-link {
+      background: none;
+      border: none;
+      text-decoration: underline;
+      color: #06c;
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      font-size: 1rem;
+    }
+    /* Template sidebar */
+    #templateSearch {
+      margin-bottom: 1rem;
+    }
+    #templateBody {
+      min-height: 150px;
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      background: #fff;
+      margin-bottom: 0.5rem;
+      white-space: pre-wrap;
+      border-radius: 6px;
+    }
+    /* Thumbnail display in the body editor */
+    #templateBody img {
+      max-width: 200px;
+      max-height: 200px;
+      height: auto;
+      margin: 0.25rem 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Batch Tool (by Héctor López)</h1>
+  
+  <!-- Left Sidebar -->
+  <div id="sidebar" class="section">
+    <div class="form-group">
+      <label for="inputData">Paste your list (one item per line or separated by a comma):</label>
+      <textarea id="inputData"></textarea>
+    </div>
+    
+    <fieldset class="form-group">
+      <legend>Batch Option</legend>
+      <div class="radio-group">
+        <label><input type="radio" name="batchOption" value="emails"> Emails (495)</label>
+        <label><input type="radio" name="batchOption" value="texts"> Texts (49)</label>
+        <label><input type="radio" name="batchOption" value="custom" checked> Custom</label>
+      </div>
+    </fieldset>
+    
+    <fieldset class="form-group">
+      <legend>Delimiter</legend>
+      <div class="radio-group">
+        <label><input type="radio" name="delimiterOption" value="linebreak" checked> Line Break</label>
+        <label><input type="radio" name="delimiterOption" value="comma"> Comma</label>
+      </div>
+    </fieldset>
+    
+    <div class="form-group">
+      <label for="batchSize">Batch Size:</label>
+      <input type="number" id="batchSize" value="100" min="1" />
+      <button id="btnGenerate">Generate Batches</button>
+    </div>
+    
+    <!-- Info display -->
+    <div id="info"></div>
+    <!-- Random Quote display -->
+    <div id="quoteDisplay" style="margin-top:1rem; font-style: italic;"></div>
+  </div>
+  
+  <!-- Main Content Area -->
+  <div id="content">
+    <!-- Duplicates Section -->
+    <fieldset id="duplicatesFieldset" class="section">
+      <legend>Duplicates</legend>
+      <span id="duplicatesTitle" class="collapsible-title">
+        <span class="collapse-icon">►</span> Found <span id="duplicatesCount">0</span> Duplicate(s)
+      </span>
+      <ul id="duplicatesList" style="display:none;"></ul>
+    </fieldset>
+    
+    <!-- Collapse All / Expand All Button -->
+    <button id="btnToggleAll" data-collapsed="false">Collapse All</button>
+    
+    <!-- Batches Section -->
+    <div class="section">
+      <h2>Batches</h2>
+      <div style="margin-bottom:0.5rem;">
+        <button id="btnExport">Export State</button>
+        <input type="file" id="fileInput" style="display:none;" />
+        <button id="btnImport">Import State</button>
+        <span class="small-text">(Exports/Imports JSON with your data/notes.)</span>
+      </div>
+      <div id="batchesContainer"></div>
+    </div>
+  </div>
+  
+  <!-- Right Sidebar: Template Editor & Search -->
+  <div id="templateSidebar" class="section">
+    <!-- Search Bar -->
+    <div id="templateSearch">
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="Search..."
+        style="width: 100%;"
+      />
+      <div style="margin-top: 0.5rem;">
+        <button id="searchBtn">Search</button>
+        <button id="clearSearchBtn">Clear</button>
+      </div>
+    </div>
+    
+    <fieldset class="form-group">
+      <legend>Template Editor</legend>
+      
+      <!-- Subject Field -->
+      <div class="form-group">
+        <label for="templateSubject">Subject (optional):</label>
+        <input
+          type="text"
+          id="templateSubject"
+          placeholder="Enter subject..."
+          style="width: 100%;"
+        />
+        <button id="copySubjectBtn" style="margin-top: 0.5rem;">Copy</button>
+      </div>
+      
+      <!-- Body Field -->
+      <div class="form-group">
+        <label for="templateBody">Body:</label>
+        <div
+          id="templateBody"
+          contenteditable="true"
+          placeholder="Paste your email/text template here..."
+          style="width: 100%; min-height: 150px; border: 1px solid #ccc; padding: 0.5rem; background: #fff;"
+        ></div>
+        <button id="copyBodyBtn" style="margin-top: 0.5rem;">Copy</button>
+      </div>
+      <p style="font-size: 0.85rem; color: #555; margin-top: 0.5rem;">
+        Tip: You can drag and drop images into the body field to insert them inline.
+      </p>
+    </fieldset>
+  </div>
+  
+  <script>
+    // ...existing code...
+  </script>
+</body>
+</html>
