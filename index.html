@@ -351,8 +351,252 @@
     </fieldset>
   </div>
   
-  <script>
-    // ...existing code...
-  </script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const inputData = document.getElementById('inputData');
+  const batchSizeInput = document.getElementById('batchSize');
+  const btnGenerate = document.getElementById('btnGenerate');
+  const info = document.getElementById('info');
+  const duplicatesCount = document.getElementById('duplicatesCount');
+  const duplicatesList = document.getElementById('duplicatesList');
+  const duplicatesTitle = document.getElementById('duplicatesTitle');
+  const batchesContainer = document.getElementById('batchesContainer');
+  const btnToggleAll = document.getElementById('btnToggleAll');
+
+  const templateBody = document.getElementById('templateBody');
+  const templateSubject = document.getElementById('templateSubject');
+  const copySubjectBtn = document.getElementById('copySubjectBtn');
+  const copyBodyBtn = document.getElementById('copyBodyBtn');
+
+  const searchInput = document.getElementById('searchInput');
+  const searchBtn = document.getElementById('searchBtn');
+  const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+  const btnExport = document.getElementById('btnExport');
+  const btnImport = document.getElementById('btnImport');
+  const fileInput = document.getElementById('fileInput');
+
+  function getDelimiter() {
+    return document.querySelector('input[name="delimiterOption"]:checked').value === 'comma' ? ',' : '\n';
+  }
+
+  function getItems() {
+    const delim = getDelimiter();
+    let raw = inputData.value;
+    const out = [];
+    if (delim === ',') {
+      raw.split(',').forEach(r => {
+        r = r.trim();
+        if (r) out.push(r);
+      });
+    } else {
+      raw.split(/\r?\n/).forEach(r => {
+        r = r.trim();
+        if (r) out.push(r);
+      });
+    }
+    return out;
+  }
+
+  function detectDuplicates(arr) {
+    const seen = new Set();
+    const dupes = new Set();
+    arr.forEach(v => {
+      const key = v.toLowerCase();
+      if (seen.has(key)) dupes.add(v);
+      else seen.add(key);
+    });
+    return Array.from(dupes);
+  }
+
+  function renderDuplicates(dupes) {
+    duplicatesCount.textContent = dupes.length;
+    duplicatesList.innerHTML = '';
+    if (!dupes.length) {
+      duplicatesList.style.display = 'none';
+      return;
+    }
+    dupes.forEach(d => {
+      const li = document.createElement('li');
+      li.textContent = d;
+      duplicatesList.appendChild(li);
+    });
+    duplicatesList.style.display = 'block';
+  }
+
+  function chunk(arr, size) {
+    const res = [];
+    for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
+    return res;
+  }
+
+  function clearBatches() {
+    batchesContainer.innerHTML = '';
+  }
+
+  function copyText(txt) {
+    navigator.clipboard.writeText(txt).then(() => showToast('Copied to clipboard'));
+  }
+
+  function renderBatches(batches) {
+    clearBatches();
+    batches.forEach((batch, idx) => {
+      const block = document.createElement('div');
+      block.className = 'batch-block';
+      const header = document.createElement('div');
+      header.className = 'batch-header';
+      const title = document.createElement('span');
+      title.textContent = `Batch ${idx + 1} (${batch.length})`;
+      const actions = document.createElement('div');
+      actions.className = 'batch-actions';
+      const copyBtn = document.createElement('button');
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', () => {
+        copyText(batch.join(getDelimiter() === ',' ? ', ' : '\n'));
+      });
+      const doneLabel = document.createElement('label');
+      const doneCb = document.createElement('input');
+      doneCb.type = 'checkbox';
+      doneCb.className = 'done-checkbox';
+      doneLabel.appendChild(doneCb);
+      doneLabel.append(' Done');
+      actions.appendChild(copyBtn);
+      actions.appendChild(doneLabel);
+      header.appendChild(title);
+      header.appendChild(actions);
+      const content = document.createElement('textarea');
+      content.className = 'batch-content';
+      content.readOnly = true;
+      content.style.width = '100%';
+      content.value = batch.join(getDelimiter() === ',' ? ', ' : '\n');
+      block.appendChild(header);
+      block.appendChild(content);
+      batchesContainer.appendChild(block);
+    });
+  }
+
+  function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('fade-out');
+      toast.addEventListener('transitionend', () => toast.remove());
+    }, 1500);
+  }
+
+  function onGenerate() {
+    const size = parseInt(batchSizeInput.value, 10) || 1;
+    const items = getItems();
+    info.textContent = `Total items: ${items.length}`;
+    const dupes = detectDuplicates(items);
+    renderDuplicates(dupes);
+    const uniqueItems = items.filter((v, i) => items.indexOf(v) === i);
+    const batches = chunk(uniqueItems, size);
+    renderBatches(batches);
+  }
+
+  btnGenerate.addEventListener('click', onGenerate);
+
+  duplicatesTitle.addEventListener('click', () => {
+    const expanded = duplicatesList.style.display !== 'none';
+    duplicatesList.style.display = expanded ? 'none' : 'block';
+    duplicatesTitle.querySelector('.collapse-icon').textContent = expanded ? '►' : '▼';
+  });
+
+  copySubjectBtn.addEventListener('click', () => copyText(templateSubject.value));
+  copyBodyBtn.addEventListener('click', () => copyText(templateBody.innerText));
+
+  searchBtn.addEventListener('click', () => {
+    const query = searchInput.value.trim().toLowerCase();
+    if (!query) return;
+    const text = templateBody.innerText.toLowerCase();
+    const index = text.indexOf(query);
+    if (index === -1) return;
+    const range = document.createRange();
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    let pos = 0;
+    let targetNode = null;
+    const walker = document.createTreeWalker(templateBody, NodeFilter.SHOW_TEXT, null, false);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const nextPos = pos + node.textContent.length;
+      if (index >= pos && index < nextPos) {
+        targetNode = node;
+        range.setStart(node, index - pos);
+        range.setEnd(node, index - pos + query.length);
+        selection.addRange(range);
+        break;
+      }
+      pos = nextPos;
+    }
+  });
+
+  clearSearchBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    window.getSelection().removeAllRanges();
+  });
+
+  btnExport.addEventListener('click', () => {
+    const data = {
+      input: inputData.value,
+      subject: templateSubject.value,
+      body: templateBody.innerHTML
+    };
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'batch_tool_state.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  btnImport.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.input) inputData.value = data.input;
+        if (data.subject) templateSubject.value = data.subject;
+        if (data.body) templateBody.innerHTML = data.body;
+      } catch (err) {
+        showToast('Invalid file');
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  btnToggleAll.addEventListener('click', () => {
+    const collapsed = btnToggleAll.dataset.collapsed === 'true';
+    const blocks = document.querySelectorAll('.batch-block .batch-content');
+    blocks.forEach(b => {
+      b.style.display = collapsed ? 'block' : 'none';
+    });
+    btnToggleAll.dataset.collapsed = (!collapsed).toString();
+    btnToggleAll.textContent = collapsed ? 'Collapse All' : 'Expand All';
+  });
+
+  templateBody.addEventListener('dragover', e => e.preventDefault());
+  templateBody.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      templateBody.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+});
+</script>
 </body>
 </html>
