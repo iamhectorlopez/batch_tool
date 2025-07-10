@@ -362,6 +362,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const duplicatesTitle = document.getElementById('duplicatesTitle');
   const batchesContainer = document.getElementById('batchesContainer');
   const btnToggleAll = document.getElementById('btnToggleAll');
+  const quoteDisplay = document.getElementById('quoteDisplay');
+  const batchRadios = document.querySelectorAll('input[name="batchOption"]');
 
   const templateBody = document.getElementById('templateBody');
   const templateSubject = document.getElementById('templateSubject');
@@ -375,6 +377,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExport = document.getElementById('btnExport');
   const btnImport = document.getElementById('btnImport');
   const fileInput = document.getElementById('fileInput');
+
+  // Update batch size based on preset options
+  function updateBatchPreset() {
+    const selected = document.querySelector('input[name="batchOption"]:checked').value;
+    if (selected === 'emails') {
+      batchSizeInput.value = 495;
+      batchSizeInput.disabled = true;
+    } else if (selected === 'texts') {
+      batchSizeInput.value = 49;
+      batchSizeInput.disabled = true;
+    } else {
+      batchSizeInput.disabled = false;
+    }
+  }
+  batchRadios.forEach(r => r.addEventListener('change', updateBatchPreset));
+  updateBatchPreset();
+
+  // Fetch a random quote
+  fetch('https://api.quotable.io/random')
+    .then(r => r.json())
+    .then(d => {
+      if (quoteDisplay) {
+        quoteDisplay.textContent = `${d.content} —${d.author}`;
+      }
+    })
+    .catch(() => {});
 
   function getDelimiter() {
     return document.querySelector('input[name="delimiterOption"]:checked').value === 'comma' ? ',' : '\n';
@@ -435,7 +463,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function copyText(txt) {
-    navigator.clipboard.writeText(txt).then(() => showToast('Copied to clipboard'));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(() => showToast('Copied to clipboard')).catch(() => fallbackCopy());
+    } else {
+      fallbackCopy();
+    }
+
+    function fallbackCopy() {
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast('Copied to clipboard');
+      } catch (err) {
+        showToast('Copy failed');
+      }
+      document.body.removeChild(ta);
+    }
   }
 
   function renderBatches(batches) {
